@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>Test_ConsistencyCheckJob</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
+/// THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+/// INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+/// We grant You a nonexclusive, royalty-free right to use and modify the Sample Code and to reproduce and distribute the object
+/// code form of the Sample Code, provided that. You agree:
+///    (i) to not use Our name, logo, or trademarks to market Your software product in which the Sample Code is embedded;
+///    (ii) to include a valid copyright notice on Your software product in which the Sample Code is embedded; and
+///    (iii) to indemnify, hold harmless, and defend Us and Our suppliers from and against any claims or lawsuits, including attorneys’ fees, that arise or result from the use or distribution of the Sample Code.
+/// This class implements the basic model on consistency check for sales/purchase orders.
+/// </summary>
+public abstract class Test_ConsistencyCheckJob extends RunBaseBatch implements BatchRetryable
+{
+    #define.consistencyCheckFixMethod('consistencyCheckFix')
+
+    date                        gFromDate;
+    date                        gToDate;
+    int                         infoLinesLast;
+    DialogField                 gFromDateField;
+    DialogField                 gToDateField;
+    DialogRunbase               gDialog;
+
+    #DEFINE.CurrentVersion(1)
+    #LOCALMACRO.CurrentList
+        gFromDate
+    #Endmacro
+
+
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>dialog</Name>
+				<Source><![CDATA[
+    /// <summary>
+    ///    Returns a class that contains the methods that are described by the <c>RunBaseDialogable</c>
+    ///    interface.
+    /// </summary>
+    /// <returns>
+    ///    A class that contains the methods that are described by the <c>RunBaseDialogable</c> interface.
+    /// </returns>
+    /// <remarks>
+    ///    A dialog can be built by using the <c>Dialog</c> class or by using a class that is created in the
+    ///    Application Object Tree (AOT).
+    /// </remarks>
+    public Object dialog()
+    {
+
+        gDialog = super();
+
+        gDialog.addGroup("Parameters");
+        gFromDateField = gDialog.addFieldValue(extendedTypeStr(FromDate), gFromDate);
+        gToDateField   = gDialog.addFieldValue(extendedTypeStr(ToDate), gToDate);
+
+        return gDialog;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getFromDialog</Name>
+				<Source><![CDATA[
+    public boolean getFromDialog()
+    {
+        gFromDate = gFromDateField.value();
+        gToDate   = gToDateField.value();
+
+        return super();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>kernelCheckRecord</Name>
+				<Source><![CDATA[
+    public void kernelCheckRecord(
+        Common      common,
+        DictTable   dictTable           = new DictTable(common.TableId),
+        boolean     hasCheckFixMethod   = false
+        )
+    {
+
+        Counter     i;
+        fieldId     id;
+        DictField   dictField;
+        int         infoLinesOrig;
+        ExecutePermission permission = new ExecutePermission();
+        container         countryRegionCodes;
+        ;
+
+        infoLinesLast = infologLine();
+        infoLinesOrig = infoLinesLast;
+
+        if (! common.RecId)
+            return;
+
+        setprefix(this.getCurPrefix(common));
+
+        if (! common.validateWrite())
+            this.postTest(common);
+
+        for (i=1;i<=dictTable.fieldCnt();i++)
+        {
+            id          = dictTable.fieldCnt2Id(i);
+            dictField   = new DictField(dictTable.id(),id);
+            if (dictField)
+            {
+                countryRegionCodes = dictField.getCountryRegionCodes();
+
+                PartyIProvider partyProvider = PartyProviderFactory::getPartyProvider();
+                boolean isLegalEntityInCountryRegion;
+
+                if (partyProvider)
+                {
+                    isLegalEntityInCountryRegion = partyProvider.isLegalEntityInCountryRegion(countryRegionCodes);
+                }
+
+                if (countryRegionCodes == conNull() || isLegalEntityInCountryRegion)
+                {
+                    this.validateField(common,dictField);
+                }
+            }
+        }
+
+        if (hasCheckFixMethod)
+        {
+            permission.assert(); // It is safe call as input is not user driven.
+
+            // BP deviation documented
+            dictTable.callObject(#consistencyCheckFixMethod,common,this);
+        }
+
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>kernelCheckTable</Name>
+				<Source><![CDATA[
+    protected void kernelCheckTable(
+        tableId     tableId,
+        fieldId     fromDateFieldId = 0 // Field id of field which is used as the from data range that can be specified in the "main" dialog
+        )
+    {
+        Query           query;
+        QueryRun        queryRun;
+        DictTable       dictTable  = new DictTable(tableId);
+        Common          common;
+        int             i;
+        str             s;
+        boolean         hasCheckFixMethod;
+
+        if (! isTableUserEnabled(tableId))
+            return;
+
+        if (! dictTable.enabled())
+            return;
+
+        common = dictTable.makeRecord();
+        select count(RecId) from common;
+        s = strfmt("@SYS26373", tableid2pname(tableId));
+        setprefix(s);
+
+        hasCheckFixMethod = this.hasTableCheckFixMethod(tableId);
+
+        query       = new Query();
+        query.addDataSource(tableId);
+        //this.addFromDateFieldRange(query,fromDateFieldId);
+        queryRun    = new QueryRun(query);
+        while (queryRun.next())
+        {
+            common  = queryRun.get(tableId);
+            this.kernelCheckRecord(common,dictTable,hasCheckFixMethod);
+            i++;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>postTest</Name>
+				<Source><![CDATA[
+    protected void postTest(
+        Common      common,
+        fieldId     fieldId = 0
+        )
+    {
+        int j;
+        int newMaxInfoLines = infologLine();
+
+        for (j = infoLinesLast + 1; j <= newMaxInfoLines; j++)
+        {
+            infolog.setAction(j, SysInfoAction_TableField::newBufferField(common, fieldId));
+        }
+        infoLinesLast = newMaxInfoLines;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>hasTableCheckFixMethod</Name>
+				<Source><![CDATA[
+    boolean hasTableCheckFixMethod(tableId tableId)
+    {
+        return new SysDictTable(tableId).isMethodActual(#consistencyCheckFixMethod);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>validateField</Name>
+				<Source><![CDATA[
+    protected void validateField(
+        Common      common,
+        DictField   dictField
+        )
+    {
+        Counter a;
+
+        if (dictField.arraySize() > 1)
+        {
+            for (a=1;a<=dictField.arraySize();a++)
+            {
+                if (! common.validateField(fieldId2Ext(dictField.id(),a)))
+                    this.postTest(common,dictField.id());
+            }
+        }
+        else
+            if (! common.validateField(dictField.id()))
+                this.postTest(common,dictField.id());
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getHeaderTableNum</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get table ID for the header table.
+    /// </summary>
+    /// <returns>Table ID for the header table, like ID for PurchTable.</returns>
+    protected abstract TableId getHeaderTableNum()
+    {
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getFilterFieldId</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get field ID which is used to build filter for the job.
+    /// </summary>
+    /// <returns>Filter field ID.</returns>
+    protected abstract FieldId getFilterFieldId()
+    {
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>buildHeaderQuery</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Build query for the header with filter field.
+    /// </summary>
+    /// <returns>Query instance for the header with filter.</returns>
+    protected Query buildHeaderQuery()
+    {
+        Query q = new Query();
+        QueryBuildDataSource lQbdsSalesTable = q.addDataSource(this.getHeaderTableNum());
+        lQbdsSalesTable.addRange(this.getFilterFieldId()).value(Global::queryRange(gFromDate, gToDate));
+
+        return q;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getCurPrefix</Name>
+				<Source><![CDATA[
+    str getCurPrefix(Common common)
+    {
+        return common.caption();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>isRetryable</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Specifies if the batch task is retryable for transient exceptions or not.
+    /// </summary>
+    /// <returns>
+    /// If true is returned, the batch task is retryable, otherwise it is not.
+    /// </returns>
+    [Hookable(false)]
+    final boolean isRetryable()
+    {
+        return true;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>canRunInNewSession</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Describes whether the class is designed for execution in a new session.
+    /// </summary>
+    /// <returns>
+    /// true if the class is designed for execution the operation in a new session; otherwise, false.
+    /// </returns>
+    protected boolean canRunInNewSession()
+    {
+        return false;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

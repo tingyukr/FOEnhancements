@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>Test_BatchLogContract</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
+/// THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+/// INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+/// We grant You a nonexclusive, royalty-free right to use and modify the Sample Code and to reproduce and distribute the object
+/// code form of the Sample Code, provided that. You agree:
+///    (i) to not use Our name, logo, or trademarks to market Your software product in which the Sample Code is embedded;
+///    (ii) to include a valid copyright notice on Your software product in which the Sample Code is embedded; and
+///    (iii) to indemnify, hold harmless, and defend Us and Our suppliers from and against any claims or lawsuits, including attorneys’ fees, that arise or result from the use or distribution of the Sample Code.
+/// Data contract classe for the report.
+/// </summary>
+[DataContract]
+final class Test_BatchLogContract
+{
+    RecId gBatchJobHistoryRecID;
+ 
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>parmBatchJobHistoryRecID</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Parameter for batch job history record ID.
+    /// </summary>
+    /// <param name = "_batchJobHistoryRecID">Batch job history record ID to be set.</param>
+    /// <returns>Batch job history record ID get.</returns>
+    [
+    DataMember('BatchJobHistoryRecID')
+    ]
+    public RecId parmBatchJobHistoryRecID(RecId _batchJobHistoryRecID = gBatchJobHistoryRecID)
+    {
+        gBatchJobHistoryRecID = _batchJobHistoryRecID;
+
+        return gBatchJobHistoryRecID;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

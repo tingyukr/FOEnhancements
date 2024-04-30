@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>Test_PurchConsistencyCheck</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
+/// THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+/// INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+/// We grant You a nonexclusive, royalty-free right to use and modify the Sample Code and to reproduce and distribute the object
+/// code form of the Sample Code, provided that. You agree:
+///    (i) to not use Our name, logo, or trademarks to market Your software product in which the Sample Code is embedded;
+///    (ii) to include a valid copyright notice on Your software product in which the Sample Code is embedded; and
+///    (iii) to indemnify, hold harmless, and defend Us and Our suppliers from and against any claims or lawsuits, including attorneys’ fees, that arise or result from the use or distribution of the Sample Code.
+/// This is the class to define the consistency check for purchase order, lines and parameters.
+/// </summary>
+public class Test_PurchConsistencyCheck extends Test_ConsistencyCheckJob
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>checkFixPurchLine</Name>
+				<Source><![CDATA[
+    private void checkFixPurchLine(PurchId _purchId)
+    {
+        DictTable       dictTable;
+        PurchLine       purchLine;
+        ProjItemTrans   projItemTrans;
+
+        dictTable = new DictTable(tablenum(PurchLine));
+
+        while select purchLine
+            where !purchLine.IsDeleted
+            && purchLine.PurchId == _purchId
+            exists join projItemTrans
+                where projItemTrans.ProjTransId == purchLine.ProjTransId
+        {
+            this.kernelCheckRecord(purchLine, dictTable);
+        }
+
+        while select purchLine
+            where !purchLine.IsDeleted
+               && purchLine.PurchId      == _purchId
+               &&  purchLine.PurchStatus != PurchStatus::Canceled
+               && !purchLine.ProjTransId
+        {
+            // Only do consistency check on record when status is not canceled
+            this.kernelCheckRecord(purchLine, dictTable);
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>checkFixPurchTable</Name>
+				<Source><![CDATA[
+    private void checkFixPurchTable()
+    // Exclude the checking if the sales order of type item requirements for Fp
+    {
+        DictTable dictTable = new DictTable(tablenum(PurchTable));
+        str s = strfmt("@SYS26373", dictTable.label());
+        setprefix(s);
+
+        Query    q  = this.buildHeaderQuery();
+        QueryRun qr = new QueryRun(q);
+
+        while (qr.next())
+        {
+            PurchTable purchTable = qr.get(tablenum(PurchTable));
+
+            this.kernelCheckRecord(purchTable, dictTable);
+
+
+            this.checkFixPurchLine(purchTable.PurchId);
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>run</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Contains the code that does the actual job of the class.
+    /// </summary>
+    public void run()
+    {
+        // PurchTable
+        this.kernelCheckTable(tablenum(PurchTable));
+
+        // PurchParameters
+        this.kernelCheckTable(tablenum(PurchParameters));
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>validateField</Name>
+				<Source><![CDATA[
+    protected void validateField(Common common, DictField dictField)
+    {
+        switch (common.TableId)
+        {
+            case (tablenum(PurchLine)):
+                PurchLine purchLine = common;
+                switch (dictField.id())
+                {
+                    case fieldnum(PurchLine, ProjTransId):
+                        if (!purchLine.isInvoiced())
+                            return;
+                        break;
+                }
+                break;
+
+            case (tablenum(PurchTable)):
+                PurchTable purchTable = common;
+                switch (dictField.id())
+                {
+                    case fieldnum(PurchTable, OrderAccount):
+                        return;
+                       
+                    case fieldnum(PurchTable, CurrencyCode):
+                        if (purchTable.isInvoiced() || purchTable.existInvoice() || purchTable.isInvoiceMatched())
+                        {
+                            return;
+                        }
+                        break;
+                }
+                break;
+        }
+
+        super(common, dictField);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>description</Name>
+				<Source><![CDATA[
+    static ClassDescription description()
+    {
+        return "@ProcurementAndSourcing:PurchDataConsistencyCheck_Description";
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>helpText</Name>
+				<Source><![CDATA[
+    static HelpTxt helpText()
+    {
+        return "@ProcurementAndSourcing:PurchDataConsistencyCheck_HelpText";
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>main</Name>
+				<Source><![CDATA[
+    static void main(Args args)
+    {
+        Test_PurchConsistencyCheck consistencyCheckJob = new Test_PurchConsistencyCheck();
+
+        if (!consistencyCheckJob.prompt())
+        {
+            return;
+        }
+
+        consistencyCheckJob.runOperation();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getHeaderTableNum</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get table ID for the header table.
+    /// </summary>
+    /// <returns>Table ID for the header table, like ID for PurchTable.</returns>
+    protected TableId getHeaderTableNum()
+    {
+        return tableNum(PurchTable);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getFilterFieldId</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get field ID which is used to build filter for the job.
+    /// </summary>
+    /// <returns>Filter field ID.</returns>
+    protected FieldId getFilterFieldId()
+    {
+        return fieldNum(PurchTable, CreatedDateTime);
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

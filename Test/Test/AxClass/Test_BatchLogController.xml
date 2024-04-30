@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>Test_BatchLogController</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
+/// THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+/// INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+/// We grant You a nonexclusive, royalty-free right to use and modify the Sample Code and to reproduce and distribute the object
+/// code form of the Sample Code, provided that. You agree:
+///    (i) to not use Our name, logo, or trademarks to market Your software product in which the Sample Code is embedded;
+///    (ii) to include a valid copyright notice on Your software product in which the Sample Code is embedded; and
+///    (iii) to indemnify, hold harmless, and defend Us and Our suppliers from and against any claims or lawsuits, including attorneys’ fees, that arise or result from the use or distribution of the Sample Code.
+///    This is controller class for batch job logs report.
+/// </summary>
+final class Test_BatchLogController extends SrsReportRunController implements BatchRetryable
+{
+ 
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>prePromptModifyContract</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Update contract info before dialog is being showed.
+    /// </summary>
+    protected void prePromptModifyContract()
+    {
+        super();
+
+        this.parmShowDialog(false);
+
+        if (this.parmArgs().record() && (this.parmArgs().record().TableId == tableNum(BatchJobHistory)))
+        {
+            Test_BatchLogContract lRdpContract = this.parmReportContract().parmRdpContract();
+            lRdpContract.parmBatchJobHistoryRecID(this.parmArgs().Record().RecId);
+        }
+        else
+        {
+            throw error('The report should be called from Batch Job history form.');
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>main</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Main thread to generate the report.
+    /// </summary>
+    /// <param name = "_args">Instance of Args.</param>
+    public static void main(Args _args)
+    {
+        Test_BatchLogController srsReportRun = new Test_BatchLogController();
+        srsReportRun.parmReportName(ssrsReportStr(Test_BatchLogReport, Report));
+        srsReportRun.parmArgs(_args);
+        srsReportRun.startOperation();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>isRetryable</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Specifies if the batch task is retryable for transient exceptions or not.
+    /// </summary>
+    /// <returns>
+    /// If true is returned, the batch task is retryable, otherwise it is not.
+    /// </returns>
+    [Hookable(false)]
+    final boolean isRetryable()
+    {
+        return true;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

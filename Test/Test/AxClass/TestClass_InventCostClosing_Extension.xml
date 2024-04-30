@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>TestClass_InventCostClosing_Extension</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+[ExtensionOf(classStr(InventCostClosing))]
+internal final class TestClass_InventCostClosing_Extension
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>mustGoBatch</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Controls if the class must be run in batch mode.
+    /// </summary>
+    /// <returns>true if the user is not an developer; otherwise, false.</returns>
+    /// <remarks>Running inventory closing/recalculation in a non-batch mode is not supported.</remarks>
+    public boolean mustGoBatch()
+    {
+        next mustGoBatch();
+
+        return false;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

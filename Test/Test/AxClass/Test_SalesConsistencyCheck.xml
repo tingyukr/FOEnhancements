@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>Test_SalesConsistencyCheck</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
+/// THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+/// INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
+/// We grant You a nonexclusive, royalty-free right to use and modify the Sample Code and to reproduce and distribute the object
+/// code form of the Sample Code, provided that. You agree:
+///    (i) to not use Our name, logo, or trademarks to market Your software product in which the Sample Code is embedded;
+///    (ii) to include a valid copyright notice on Your software product in which the Sample Code is embedded; and
+///    (iii) to indemnify, hold harmless, and defend Us and Our suppliers from and against any claims or lawsuits, including attorneys’ fees, that arise or result from the use or distribution of the Sample Code.
+/// This class defines consistency check for sales order, lines and parameters.
+/// </summary>
+public class Test_SalesConsistencyCheck extends Test_ConsistencyCheckJob
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>checkFixSalesLine</Name>
+				<Source><![CDATA[
+    private void checkFixSalesLine(SalesId _salesID)
+    // Exclude the Open Order Sales Status in the SalesTable file.
+    {
+        DictTable dictTable = new DictTable(tablenum(SalesLine));
+        str s = strfmt("@SYS26373", dictTable.label());
+        setprefix(s);
+
+        Query q = new Query();
+        QueryBuildDataSource lQbdsSalesLine = q.addDataSource(tablenum(SalesLine));
+        lQbdsSalesLine.addRange(fieldNum(SalesLine, SalesId)).value(_salesID);
+        QueryRun qr = new QueryRun(q);
+
+        while (qr.next())
+        {
+              SalesLine salesLine = qr.get(tablenum(SalesLine));
+
+            // Dismiss orders with status Canceled from consistancy check.
+            if (salesLine.SalesStatus != SalesStatus::Canceled)
+            {
+                if (salesLine.ProjId)
+                {
+                    //
+                    // Only check orders with a valid project item transaction and
+                    // those with projects at a status that allows creating sales lines
+                    //
+                    if (ProjItemTrans::find(salesLine.ProjTransId) &&
+                        ProjTable::find(salesLine.ProjId).status().checkRule(ProjStatusRule::CreateItemTask))
+                    {
+                        this.kernelCheckRecord(salesLine,dictTable);
+                    }
+                }
+                //not Project
+                else
+                {
+                    this.kernelCheckRecord(salesLine,dictTable);
+                }
+            }
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>checkFixSalesTable</Name>
+				<Source><![CDATA[
+    private void checkFixSalesTable()
+    // Exclude the checking if the sales order of type item requirements for Fp
+    {
+        DictTable dictTable = new DictTable(tablenum(SalesTable));
+        str s = strfmt("@SYS26373", dictTable.label());
+        setprefix(s);
+
+        Query    q  = this.buildHeaderQuery();
+        QueryRun qr = new QueryRun(q);
+
+        while (qr.next())
+        {
+            SalesTable salesTable = qr.get(tablenum(SalesTable));
+
+            if (salesTable.ProjId)
+            {
+                ProjTable projTable = ProjTable::find(salesTable.ProjId);
+
+                // Only check orders for those with projects at a status that allows creating sales orders
+                if (projTable.status().checkRule(ProjStatusRule::CreateItemTask))
+                {
+                    this.kernelCheckRecord(salesTable,dictTable);
+                }
+            }
+            //not Project
+            else
+            {
+                 this.kernelCheckRecord(salesTable,dictTable);
+            }
+
+            this.checkFixSalesLine(salesTable.SalesId);
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>run</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Contains the code that does the actual job of the class.
+    /// </summary>
+    public void run()
+    {
+        // SalesTable
+        this.checkFixSalesTable();
+
+        // SalesParameters
+        this.kernelCheckTable(tablenum(SalesParameters));
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>validateField</Name>
+				<Source><![CDATA[
+    protected void validateField(
+        Common      common,
+        DictField   dictField
+        )
+    {
+        Counter a;
+
+        switch (common.TableId)
+        {
+            case tablenum(SalesLine) :
+
+                if (dictField.id() == fieldnum(SalesLine,InventTransId))
+                {
+                    SalesLine salesLine = common;
+                    if (salesLine.SalesType == SalesType::Journal ||
+                        (salesLine.SalesType == SalesType::ReturnItem && (salesLine.ReturnStatus == ReturnStatusLine::Awaiting && salesLine.ReturnAllowReservation == NoYes::No)))
+                        return;
+                }
+                break;
+
+            case tablenum(SalesTable) :
+                if (dictField.id() == fieldnum(SalesTable, CustAccount) ||
+                    dictField.id() == fieldnum(SalesTable, InvoiceAccount))
+                    return;
+                break;
+        }
+
+        super(common, dictField);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>description</Name>
+				<Source><![CDATA[
+    static ClassDescription description()
+    {
+        return "@SalesAndMarketing:SalesDataConsistencyCheck_Description";
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>helpText</Name>
+				<Source><![CDATA[
+    static HelpTxt helpText()
+    {
+        return "@SalesAndMarketing:SalesDataConsistencyCheck_HelpText";
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>main</Name>
+				<Source><![CDATA[
+    static void main(Args args)
+    {
+        Test_SalesConsistencyCheck consistencyCheckJob = new Test_SalesConsistencyCheck();
+
+        if (!consistencyCheckJob.prompt())
+        {
+            return;
+        }
+
+        consistencyCheckJob.runOperation();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getHeaderTableNum</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get table ID for the header table.
+    /// </summary>
+    /// <returns>Table ID for the header table, like ID for PurchTable.</returns>
+    protected TableId getHeaderTableNum()
+    {
+        return tableNum(SalesTable);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getFilterFieldId</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Get field ID which is used to build filter for the job.
+    /// </summary>
+    /// <returns>Filter field ID.</returns>
+    protected FieldId getFilterFieldId()
+    {
+        return fieldNum(SalesTable, CreatedDateTime);
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
